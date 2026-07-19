@@ -132,3 +132,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_REDIRECT_URL  = '/orders/'
 LOGOUT_REDIRECT_URL = '/login/'
 LOGIN_URL = '/login/'
+
+import os
+from decouple import config
+
+# Read from .env using decouple and map to settings + system environment
+GEMINI_API_KEY = config('GEMINI_API_KEY')
+GEMINI_MODEL = config('GEMINI_MODEL', default='gemini-3.5-flash')
+
+os.environ["GEMINI_API_KEY"] = GEMINI_API_KEY
+
+
