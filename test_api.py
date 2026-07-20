@@ -21,3 +21,6 @@ if __name__ == "__main__":
         print("\nOutput:\n", output)
     except Exception as e:
         print("\nRequest failed. Error details:", e)
+
+for model in client.models.list():
+    print(model.name)

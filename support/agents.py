@@ -1,7 +1,8 @@
 from google import genai
+from google.genai import types
 from django.conf import settings
-from .tools import get_order_details, get_refund_history, check_delivery_status, get_customer_risk_profile, search_knowledge_base
-
+from .tools import get_order_details, get_refund_history, check_delivery_status
+from . models import Conversation, Message, AgentLog
 
 client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
@@ -118,3 +119,37 @@ def execute_tool(tool_name, tool_input, conversation_id=None):
 
 
 #Agent Loop
+def run_support_agent(user_message, conversation_id):
+    conv = Conversation.objects.get(id=conversation_id)
+
+    conversation_messages = []
+
+    for msg in conv.messages.order_by("created_at"):
+        conversation_messages.append(
+            types.Content(
+                role=msg.role,
+                parts=[
+                    types.Part(text=msg.content)
+                ]
+            )
+        )
+
+    #send conversation to LLM
+    response = client.models.generate_content(
+        model=gemini_model,
+        # max_tokens=1024, # Note: check your SDK version; 'max_output_tokens' is standard for Gemini
+        config={"max_output_tokens": 1024, "system_instruction": SUPPORT_SYSTEM_PROMPT},
+        contents=conversation_messages,
+    )
+    
+    # 5. Extract the text content from the Gemini response structure
+    ai_response_text = response.text
+    
+    # 6. Save the AI's response to the database for future turns
+    Message.objects.create(
+        conversation=conv,
+        role="model", # Gemini standard role name is 'model' instead of 'assistant'
+        content=ai_response_text
+    )
+
+    print("resonse", response)

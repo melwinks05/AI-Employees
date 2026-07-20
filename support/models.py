@@ -4,7 +4,7 @@ from orders.models import Order
 
 class Conversation(models.Model):
   user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='conversations')
-  user = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='conversations')
+  order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='order_conversations', null=True, blank=True)
   created_at = models.DateTimeField(auto_now_add=True)
 
   def __str__(self):
@@ -15,7 +15,7 @@ class Message(models.Model):
     ('user', "User"),
     ("agent", "Agent"),
   ]
-  user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='conversations')
+  conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='messages')
   role = models.CharField(max_length=20, choices=ROLE_CHOICES)
   content = models.TextField()
   created_at = models.DateTimeField(auto_now_add=True)
