@@ -350,8 +350,7 @@
             {% endif %}
             {% endfor %}
             {% else %}
-            <div class="agent-message p-2 px-3" style="font-size: 13px; max-width: 85%;">
-              Hi {{ request.user.first_name }}, I'm Maya, How can I help you with your order today?
+            <div class="agent-message p-2 px-3" style="font-size: 13px; max-width: 85%;">Hi {{ request.user.first_name }}, I'm Maya, How can I help you with your order today?
             </div>
             {% endif %}
           </div>
@@ -381,9 +380,12 @@
     }
 
     function showChat() {
+      const input = document.getElementById("chat-input")
       document.getElementById("help-card").style.display = "none";
       const chatBox = document.getElementById("chat-box");
       chatBox.classList.add("visible")
+      input.focus();
+      
     }
 
     function appendMessage(text, type) {
@@ -408,7 +410,8 @@
       appendMessage(message, "customer")
 
       input.value = ""
-      setTimeout(()=>showTyping(), 1000)
+      input.disabled = true
+      const typingTimeout = setTimeout(()=>showTyping(), 1000)
 
       try{
       const response = await fetch("/support/chat/{{order.id}}/",{
@@ -422,10 +425,18 @@
       const data = await response.json()
       hideTyping()
       appendMessage(data.reply, "agent")
+      input.disabled = false
+      input.focus();
 
     }catch(error){
       console.error("Error:", error)
       appendMessage("Sorry, something went wrong", "agent")
+    }
+    finally{
+      clearTimeout(typingTimeout)
+      hideTyping()
+      input.disabled = false
+      input.focus();
     }
     }
 

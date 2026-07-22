@@ -8,6 +8,8 @@ from . models import Conversation, Message
 from django.shortcuts import get_object_or_404
 
 
+
+
 def chat(request, order_id):
   if request.method=='POST':
     data = json.loads(request.body)
@@ -21,10 +23,9 @@ def chat(request, order_id):
   Message.objects.create(conversation=conversation, role="user", content=user_message)
   
   #Send user message and conversation to LLM
-  reply= run_support_agent(user_message, conversation.id)
+  reply= run_support_agent(user_message, conversation.id, order.id, request.user.id)
   
   #Store the LLM Reply
-  Message.objects.create(conversation=conversation, role="agent", content=reply)
+  Message.objects.create(conversation=conversation, role="assistant", content=reply)
 
-  return JsonResponse({"reply":"here is the reply"})
-    
+  return JsonResponse({"reply":reply})

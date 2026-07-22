@@ -1,15 +1,17 @@
-from google import genai
-from google.genai import types
+from anthropic import Anthropic
 from django.conf import settings
 from .tools import get_order_details, get_refund_history, check_delivery_status
-from . models import Conversation, Message, AgentLog
+from .models import Conversation, Message, AgentLog
 
-client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
-gemini_model = settings.GEMINI_MODEL
+# Initialize Anthropic client
+client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
-#Support System prompt
-SUPPORT_SYSTEM_PROMPT="""
+anthropic_model = settings.ANTHROPIC_MODEL
+
+
+# SUPPORT SYSTEM PROMPT --> Maya's job description
+SUPPORT_SYSTEM_PROMPT = """
 You are Maya, a customer support agent at CoolBreeze AC.
 You help customers with issues related to their AC orders.
 
@@ -34,9 +36,10 @@ Important rules:
 """
 
 
-#Support Tools
-SUPPORT_TOOLS=[
-  {
+
+# SUPPORT TOOLS --> Tool schemas, that ai agents will read
+SUPPORT_TOOLS = [
+    {
         "name": "get_order_details",
         "description": "Fetch complete order details including status, carrier, tracking number and days since order was placed. Use this when customer mentions their order or complains about delivery.",
         "input_schema": {
@@ -84,9 +87,42 @@ SUPPORT_TOOLS=[
             "required": ["tracking_number", "carrier"]
         }
     },
+
+    {
+        "name": "escalate_to_manager",
+        "description": "Escalate the case to manager for refund decision. Always include customer's user_id in the case summary so manager can assess fraud risk accurately.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "case_summary": {
+                    "type": "string",
+                    "description": "Complete case summary. Must include: customer user_id, order details, refund history and complaint. Format: Start with 'Customer User ID: X' on the first line."
+                }
+            },
+            "required": ["case_summary"]
+        }
+    },
+
+    {
+        "name": "search_knowledge_base",
+        "description": "Search CoolBreeze AC company documents including refund policy, warranty policy, and product FAQs. Use this when customer asks about company policies, warranty coverage, warranty claims, refund eligibility, or any general product information that requires accurate company documentation.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search query to find relevant information from company documents. Be specific — for example 'refund eligibility within 30 days' instead of just 'refund'."
+                }
+            },
+            "required": ["query"]
+        }
+    }
+
+
 ]
 
-#Execute Tool\
+
+# execute_tool() --> bridge between claude and python functions (tools)
 def execute_tool(tool_name, tool_input, conversation_id=None):
     if tool_name == "get_order_details":
         return get_order_details(tool_input["order_id"])
@@ -96,60 +132,54 @@ def execute_tool(tool_name, tool_input, conversation_id=None):
     
     if tool_name == "check_delivery_status":
         return check_delivery_status(tool_input["tracking_number"], tool_input["carrier"])
-    
-    if tool_name == "escalate_to_manager":
-        case_summary = tool_input["case_summary"]
-        print("escalating to manager=====>", case_summary)
-        decision = run_manager_agent(case_summary, conversation_id)
-        print("decision===>", decision)
-        return decision
-    
-    if tool_name == 'assess_fraud_risk':
-        user_id = tool_input['user_id']
-        print("Consulting risk agent for user==>", user_id)
-        verdict = run_risk_agent(user_id, conversation_id)
-        print("risk verdict==>", verdict)
-        return verdict
-    
-    if tool_name == 'get_customer_risk_profile':
-        return get_customer_risk_profile(tool_input['user_id'])
-    
-    if tool_name == "search_knowledge_base":
-        return search_knowledge_base(tool_input["query"])
 
 
-#Agent Loop
-def run_support_agent(user_message, conversation_id):
+# Agent Loop --> while loop that loops until the task is done
+def run_support_agent(user_messages, conversation_id, order_id, user_id):
     conv = Conversation.objects.get(id=conversation_id)
 
     conversation_messages = []
-
     for msg in conv.messages.order_by("created_at"):
-        conversation_messages.append(
-            types.Content(
-                role=msg.role,
-                parts=[
-                    types.Part(text=msg.content)
-                ]
+        conversation_messages.append({
+            "role": msg.role,
+            "content": msg.content
+        })
+    
+    while True:
+        response = client.messages.create(
+                model=anthropic_model,
+                max_tokens=1024,
+                system=SUPPORT_SYSTEM_PROMPT + f"\n\nContext: This conversation is about Order #{order_id}, user: {user_id}",
+                tools=SUPPORT_TOOLS,
+                messages=conversation_messages,
             )
-        )
+        
+        if response.stop_reason== 'tool_use':
+            tool_result=[]
+            for block in response.content:
+                if block.type == 'tool_use':
+                    print("tool call ==>", block.name)
+                    print("tool input ==>", block.input)
 
-    #send conversation to LLM
-    response = client.models.generate_content(
-        model=gemini_model,
-        # max_tokens=1024, # Note: check your SDK version; 'max_output_tokens' is standard for Gemini
-        config={"max_output_tokens": 1024, "system_instruction": SUPPORT_SYSTEM_PROMPT},
-        contents=conversation_messages,
-    )
-    
-    # 5. Extract the text content from the Gemini response structure
-    ai_response_text = response.text
-    
-    # 6. Save the AI's response to the database for future turns
-    Message.objects.create(
-        conversation=conv,
-        role="model", # Gemini standard role name is 'model' instead of 'assistant'
-        content=ai_response_text
-    )
+                    result = execute_tool(block.name, block.input)
+                    print('tool result', result)
+                    tool_result.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": str(result)
+                    })
+            
+            conversation_messages.append({
+                "role": "assistant",
+                "content": response.content
+            })
 
-    print("resonse", response)
+            conversation_messages.append({
+                "role": "user",
+                "content": tool_result
+            })
+
+
+        else: 
+            return response.content[0].text
+            

@@ -1,26 +1,18 @@
-import os
-from google import genai
+from anthropic import Anthropic
 from decouple import config
 
-# 1. Inject API key into system environment safely
-os.environ["GEMINI_API_KEY"] = config('GEMINI_API_KEY').strip()
+client = Anthropic(
+    api_key=config("ANTHROPIC_API_KEY"),  # This is the default and can be omitted
+)
 
-def ask_gemini_agent(prompt_text):
-    client = genai.Client() 
-    response = client.models.generate_content(
-        model=config('GEMINI_MODEL'), 
-        contents=prompt_text,
-    )
-    return response.text
-
-if __name__ == "__main__":
-    print("Sending request to Gemini...")
-    try:
-        # Changed the prompt text to ask for 5 animal names
-        output = ask_gemini_agent("who is indias PM")
-        print("\nOutput:\n", output)
-    except Exception as e:
-        print("\nRequest failed. Error details:", e)
-
-for model in client.models.list():
-    print(model.name)
+message = client.messages.create(
+    max_tokens=1024,
+    messages=[
+        {
+            "role": "user",
+            "content": "Give me 5 names of animals",
+        }
+    ],
+    model=config("ANTHROPIC_MODEL"),
+)
+print(message.content)
