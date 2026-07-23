@@ -344,13 +344,12 @@
               {{ msg.content }}
             </div>
             {% else %}
-            <div class="agent-message p-2 px-3" style="font-size: 13px;max-width: 85%;">
-              {{ msg.content }}
+            <div class="agent-message p-2 px-3" style="font-size: 13px;max-width: 85%;">{{ msg.content }}
             </div>
             {% endif %}
             {% endfor %}
             {% else %}
-            <div class="agent-message p-2 px-3" style="font-size: 13px; max-width: 85%;">Hi {{ request.user.first_name }}, I'm Maya, How can I help you with your order today?
+            <div class="agent-message p-2 px-3" style="font-size: 13px; max-width: 85%;">Hi {{request.user.first_name}}, I'm Maya, How can I help you with your order today?
             </div>
             {% endif %}
           </div>
@@ -366,7 +365,7 @@
   </div>
   <script>
 
-    function showTyping(){
+    function showTyping() {
       const messages = document.getElementById("chat-messages");
       messages.insertAdjacentHTML("beforeend", `
       <div id="typing-indicator" class="agent-message p-2" style="font-size:13px; max-width:85%;" >Typing...
@@ -375,7 +374,7 @@
       messages.scrollTop = messages.scrollHeight
     }
 
-    function hideTyping(){
+    function hideTyping() {
       document.getElementById('typing-indicator').remove();
     }
 
@@ -385,7 +384,7 @@
       const chatBox = document.getElementById("chat-box");
       chatBox.classList.add("visible")
       input.focus();
-      
+
     }
 
     function appendMessage(text, type) {
@@ -411,40 +410,40 @@
 
       input.value = ""
       input.disabled = true
-      const typingTimeout = setTimeout(()=>showTyping(), 1000)
+      const typingTimeout = setTimeout(() => showTyping(), 1000)
 
-      try{
-      const response = await fetch("/support/chat/{{order.id}}/",{
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": "{{csrf_token}}"
-        },
-        body: JSON.stringify({message: message})
-      });
-      const data = await response.json()
-      hideTyping()
-      appendMessage(data.reply, "agent")
-      input.disabled = false
-      input.focus();
+      try {
+        const response = await fetch("/support/chat/{{order.id}}/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": "{{csrf_token}}"
+          },
+          body: JSON.stringify({ message: message })
+        });
+        const data = await response.json()
+        hideTyping()
+        appendMessage(data.reply, "agent")
+        input.disabled = false
+        input.focus();
 
-    }catch(error){
-      console.error("Error:", error)
-      appendMessage("Sorry, something went wrong", "agent")
-    }
-    finally{
-      clearTimeout(typingTimeout)
-      hideTyping()
-      input.disabled = false
-      input.focus();
-    }
+      } catch (error) {
+        console.error("Error:", error)
+        appendMessage("Sorry, something went wrong", "agent")
+      }
+      finally {
+        clearTimeout(typingTimeout)
+        hideTyping()
+        input.disabled = false
+        input.focus();
+      }
     }
 
     document.getElementById("chat-input").addEventListener("keydown", function (e) {
       if (e.key === "Enter") sendMessage();
     })
 
-    
+
 
   </script>
 </body>

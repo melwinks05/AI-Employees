@@ -30,9 +30,33 @@ Your personality:
 Important rules:
 - Always check order details first before responding
 - Never approve or deny a refund yourself
-- If refund decision is needed — tell customer you are checking with your team
+- If the customer requests a refund or refund decision, you MUST call the
+'escalate_to_manager' tool.
 - Never use bold text, bullet points or any markdown formatting. Plain text only.
 - Keep replies concise and conversational. Maximum 3-4 sentences. No long paragraphs.
+"""
+
+# MANAGER SYSTEM PROMPT
+MANAGER_SYSTEM_PROMPT = """
+You are a senior support manager at CoolBreeze AC.
+A support agent has escalated a customer case to you for a refund decision.
+
+Your responsibilities:
+- Review the case summary carefully
+- Consider the customer's refund history
+- Make a fair and final refund decision
+- Give a clear reason for your decision
+
+Your decision options:
+- Approve refund — if the case is genuine and within policy
+- Deny refund — if the case is suspicious or outside policy
+- Escalate to risk team — if you suspect fraud
+
+Important rules:
+- Be fair but firm
+- Base decision on facts — not emotions
+- Always give a specific reason for your decision
+- Keep your response concise and professional
 """
 
 
@@ -116,7 +140,8 @@ SUPPORT_TOOLS = [
             },
             "required": ["query"]
         }
-    }
+    },
+
 
 
 ]
@@ -132,6 +157,14 @@ def execute_tool(tool_name, tool_input, conversation_id=None):
     
     if tool_name == "check_delivery_status":
         return check_delivery_status(tool_input["tracking_number"], tool_input["carrier"])
+
+    if tool_name == "escalate_to_manager":
+        case_summary = tool_input["case_summary"]
+        print("escalating to manager====>", case_summary)
+        decision = run_manager_agent(case_summary)
+        print("decision==>", decision)
+        return decision
+
 
 
 # Agent Loop --> while loop that loops until the task is done
@@ -158,11 +191,8 @@ def run_support_agent(user_messages, conversation_id, order_id, user_id):
             tool_result=[]
             for block in response.content:
                 if block.type == 'tool_use':
-                    print("tool call ==>", block.name)
-                    print("tool input ==>", block.input)
 
                     result = execute_tool(block.name, block.input)
-                    print('tool result', result)
                     tool_result.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,
@@ -182,4 +212,43 @@ def run_support_agent(user_messages, conversation_id, order_id, user_id):
 
         else: 
             return response.content[0].text
-            
+
+
+def run_manager_agent(case_summary):
+    manager_messages = [
+        {
+            "role": "user",     # Task giver
+            "content": case_summary,
+         }
+    ]
+    while True:
+        response = client.messages.create(
+            model=anthropic_model,
+            max_tokens=1024,
+            system=MANAGER_SYSTEM_PROMPT,
+            messages=manager_messages
+        )
+
+        if response.stop_reason == "tool_use":
+            tool_result = []
+            for block in response.content:
+                if block.type == 'tool_use':
+                    result = execute_tool(block.name, block.input)
+
+                    tool_result.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": str(result)
+                    })
+            manager_messages.append({
+                "role": "assistant",
+                "content": response.content
+            })
+
+            manager_messages.append({
+                "role": "user",
+                "content": tool_result
+            })
+
+        else: 
+            return response.content[0].text    
