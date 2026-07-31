@@ -1,1 +1,1 @@
-web: gunicorn DJ_EMPLOYEES.wsgi
+web: gunicorn Dj_Employees.wsgi
