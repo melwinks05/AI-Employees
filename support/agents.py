@@ -294,13 +294,16 @@ def run_support_agent(user_messages, conversation_id, order_id, user_id):
 
         else:
             final_replay = response.content[0].text
-            # Publish final replay
+            
+            # Publish final reply
             event = {'type': 'final', 'message': final_replay}
             publish(conversation_id, event)
+            
             # Log the final replay
             AgentLog.objects.create(conversation=conv, event_type="final", message=final_replay)
 
             publish(conversation_id, DONE)
+            print("Running raw implementation")
             return final_replay
 
 

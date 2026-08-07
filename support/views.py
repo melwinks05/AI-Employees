@@ -8,6 +8,7 @@ from .event_queue import publish, subscribe, unsubscribe
 from . models import Conversation, Message
 from django.shortcuts import get_object_or_404
 from django.contrib.admin.views.decorators import staff_member_required
+from .langchain_agents import run_support_agent_langchain
 
 
 
@@ -28,7 +29,9 @@ def chat(request, order_id):
   publish(conversation.id, event)
   
   #Send user message and conversation to LLM
-  reply= run_support_agent(user_message, conversation.id, order.id, request.user.id)
+
+  #reply= run_support_agent(user_message, conversation.id, order.id, request.user.id)
+  reply = run_support_agent_langchain(user_message, conversation.id, order.id, request.user.id)
   
   #Store the LLM Reply
   Message.objects.create(conversation=conversation, role="assistant", content=reply)
